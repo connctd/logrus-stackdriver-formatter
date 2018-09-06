@@ -4,7 +4,7 @@ import (
 	"os"
 	"strconv"
 
-	stackdriver "github.com/TV4/logrus-stackdriver-formatter"
+	stackdriver "github.com/connctd/logrus-stackdriver-formatter"
 	"github.com/sirupsen/logrus"
 )
 
