@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/TV4/logrus-stackdriver-formatter/test"
+	"github.com/connctd/logrus-stackdriver-formatter/test"
 	"github.com/kr/pretty"
 	"github.com/sirupsen/logrus"
 )
