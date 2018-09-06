@@ -15,6 +15,20 @@ var skipTimestamp bool
 
 type severity string
 
+var (
+	DefaultSubjectKey     = "X-Subject-Id"
+	DefaultOperationIdKey = "X-Request-Id"
+)
+
+const (
+	// Copied from https://github.com/opentracing/basictracer-go/blob/master/propagation_ot.go
+	// Might be necessary to keep this in sync.
+	prefixTracerState = "ot-tracer-"
+
+	fieldNameTraceID = prefixTracerState + "traceid"
+	fieldNameSpanID  = prefixTracerState + "spanid"
+)
+
 const (
 	severityDebug    severity = "DEBUG"
 	severityInfo     severity = "INFO"
@@ -44,10 +58,24 @@ type reportLocation struct {
 	FunctionName string `json:"functionName,omitempty"`
 }
 
+type operation struct {
+	Id       string `json:"id,omitempty"`
+	Producer string `json:"producer,omitempty"`
+	First    *bool  `json:"first,omitempty"`
+	Last     *bool  `json:"last,omitempty"`
+}
+
+type sourceLocation struct {
+	File     string `json:"file,omitempty"`
+	Line     string `json:"line,omitempty"`
+	Function string `json:"function,omitempty"`
+}
+
 type context struct {
 	Data           map[string]interface{} `json:"data,omitempty"`
 	ReportLocation *reportLocation        `json:"reportLocation,omitempty"`
 	HTTPRequest    map[string]interface{} `json:"httpRequest,omitempty"`
+	User           string                 `json:"user,omitempty"`
 }
 
 type entry struct {
@@ -56,6 +84,10 @@ type entry struct {
 	Message        string          `json:"message,omitempty"`
 	Severity       severity        `json:"severity,omitempty"`
 	Context        *context        `json:"context,omitempty"`
+	Trace          string          `json:"logging.googleapis.com/trace,omitempty"`
+	SpanID         string          `json:"logging.googleapis.com/span_id,omitempty"`
+	SourceLocation *sourceLocation `json:"sourceLocation,omitempty"`
+	Operation      *operation      `json:"operation,omitempty"`
 }
 
 // Formatter implements Stackdriver formatting for logrus.
@@ -172,6 +204,12 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 			}
 		}
 
+		// If we find a user/subject id in the log fields, add it to the error context
+		if user := getStringValue(DefaultSubjectKey, ee.Context.Data); user != "" {
+			ee.Context.User = user
+			delete(ee.Context.Data, DefaultSubjectKey)
+		}
+
 		// Extract report location from call stack.
 		if c, err := f.errorOrigin(); err == nil {
 			lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
@@ -182,6 +220,34 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 				FunctionName: fmt.Sprintf("%n", c),
 			}
 		}
+	default:
+		// Always try to add the source location to logs, if we are not reporting an error
+		if c, err := f.errorOrigin(); err == nil {
+			lineNumber, _ := strconv.ParseInt(fmt.Sprintf("%d", c), 10, 64)
+
+			ee.SourceLocation = &sourceLocation{
+				File:     fmt.Sprintf("%+s", c),
+				Line:     fmt.Sprintf("%d", int(lineNumber)),
+				Function: fmt.Sprintf("%n", c),
+			}
+		}
+	}
+
+	if operationId := getStringValue(DefaultOperationIdKey, ee.Context.Data); operationId != "" {
+		ee.Operation = &operation{
+			Id: operationId,
+		}
+		delete(ee.Context.Data, DefaultOperationIdKey)
+	}
+
+	// Add tracing information to all logs if available
+	if traceId := getStringValue(fieldNameTraceID, ee.Context.Data); traceId != "" {
+		ee.Trace = traceId
+		delete(ee.Context.Data, fieldNameTraceID)
+	}
+	if spanId := getStringValue(fieldNameSpanID, ee.Context.Data); spanId != "" {
+		ee.SpanID = spanId
+		delete(ee.Context.Data, fieldNameSpanID)
 	}
 
 	b, err := json.Marshal(ee)
@@ -190,4 +256,13 @@ func (f *Formatter) Format(e *logrus.Entry) ([]byte, error) {
 	}
 
 	return append(b, '\n'), nil
+}
+
+func getStringValue(key string, context map[string]interface{}) string {
+	if val, ok := context[key]; ok {
+		if stringVal, ok := val.(string); ok {
+			return stringVal
+		}
+	}
+	return ""
 }
