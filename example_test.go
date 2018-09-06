@@ -24,6 +24,6 @@ func ExampleLogError() {
 	}
 
 	// Output:
-	// {"message":"application up and running","severity":"INFO","context":{}}
-	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer: strconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"filePath":"github.com/TV4/logrus-stackdriver-formatter/example_test.go","lineNumber":23,"functionName":"ExampleLogError"}}}
+	// {"message":"application up and running","severity":"INFO","context":{},"sourceLocation":{"file":"github.com/connctd/logrus-stackdriver-formatter/example_test.go","line":"19","function":"ExampleLogError"}}
+	// {"serviceContext":{"service":"test-service","version":"v0.1.0"},"message":"unable to parse integer: strconv.ParseInt: parsing \"text\": invalid syntax","severity":"ERROR","context":{"reportLocation":{"filePath":"github.com/connctd/logrus-stackdriver-formatter/example_test.go","lineNumber":23,"functionName":"ExampleLogError"}}}
 }
